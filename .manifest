@@ -1,0 +1,7 @@
+{
+	"name": "dyndef",
+	"platforms": ["web"],
+	"apps": {"index": "index"},
+	"minify": true,
+	"web-prefix": true
+}
