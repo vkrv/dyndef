@@ -3,118 +3,157 @@ Item {
 	clip: true;
 
 	Image {
-		source: "res/wall2.jpg";
+		source: "res/wall.jpg";
 		width: 100%; height: 50%;
-		fillMode: Image.Tile;			
+		fillMode: Image.Tile;
+
+		Text {
+			font.pixelSize: 42;
+			anchors.fill: parent;
+			verticalAlignment: Text.AlignVCenter;
+			horizontalAlignment: Text.AlignHCenter;
+			visible: game.active && creator.countdown > 0;
+			color: "#EEEEEE";
+			text: "Next wave start in " + creator.countdown + " sec.";
+			opacity: visible;
+			Behavior on opacity, visible { Animation { duration: 700;}}
+		}		
 	}
 
 	Rectangle {
-		// source: "res/grass.jpg";
-		// fillMode: Image.Tile;
-		color: "#EDEDED";
+		id: gameOver;
+		anchors.fill: parent;
+		color: "#B71C1C";
+		opacity: visible ? 0.7 : 0;
+		visible: false;
+		z: visible ? 100 : -10;
+
+		Text {
+			color: "white";
+			anchors.centerIn: parent;
+			font.pixelSize: 64;
+			text: "GEIMOVA";
+			HoverMixin { cursor: "pointer"; }
+			onClicked: { gameOver.visible = false; }
+		}
+
+		Behavior on opacity, visible { Animation { duration: 1600; }}
+	}
+
+	Rectangle {
+		color: "#dfe2a6";
 		width: 100%;
 		height: 50%;
 		y: 50%;
-	}
-
-	WebItem {
-		width: 120;
-		height: 42;
-		radius: 21;
-		color: hover ? "green" : "blue";
-		border.width: 1;
-		border.color: "white";
-		z: 1;
-
-		property TextMixin text: TextMixin {
-			color: "white";
-			verticalAlignment: Text.AlignVCenter;
-			horizontalAlignment: Text.AlignHCenter;
-			text: "Start";
-		}
-
-		onClicked: {
-			if (!zombieGame.active) {
-				zombieGame.start();
+		ColorInput {
+			z: 4;
+			onColorChanged: {
+				this.parent.color = value;
 			}
 		}
 	}
 
+	Text {
+		z: 1; x: 10; y: 10;
+		color: hover.value ? "#CDDC39" : "white";
+		font.pixelSize: 30;
+		text: game.active ? "RESTART" : "START";
+		property HoverMixin hover: HoverMixin { cursor: "pointer"; }
+		onClicked: { game.start(); }
+		Behavior on color { Animation {duration: 500;}}
+	}
+
+
+	Image {
+		source: "res/heart.png";
+		x: 100% - width - 10;
+		y: 10;
+
+		Text {
+			font.pixelSize: 42;
+			color: "white";
+			y: 100%;
+			anchors.horizontalCenter: parent.horizontalCenter;
+			text: brain.health;
+		}
+	}
+
 	Repeater {
-		id: zombieGame;
+		id: game;
 		width: 100%;
 		height: 200;
 		y: 50% - 120;
 		property bool active;
-		property bool eaten: brain.health === 0;
+		property int level;
+		property bool lost: brain.health <= 0;
+
 
 		start: {
+			log("restart")
+			this.model.clear();
+			creator.interval = 1000;
+			creator.countdown = 5;
 			brain.health = 100;
-			zombieGame.model.clear();
-			zombieGame.active = true;
+			this.active = true;
 		}
 
 		onCountChanged: {
 			log("onCountChanged", value)
-			if (value === 0)
-				this.active = false;
 		}
 
 		model: ListModel { }
 
 		Timer {
 			id: creator;
-			interval: 3000;
-			running: zombieGame.active && !zombieGame.eaten;
+			interval: 1000;
+			running: game.active && !game.lost;
 			repeat: true;
 			triggeredOnStart: true;
+			property int countdown: 5;
 
 			onTriggered: {
-				this.interval = Math.floor(Math.random() * 400) + 2000
-				var s = Math.floor(Math.random() * 4) + 4
-				var n = Math.random() > 0.5 ? "zombie2" : "zombie1"
-				log ("timer", this.interval, s, n)
+				log("creator onTriggered", this.countdown, this.interval)
+				if(this.countdown > 0) {
+					--this.countdown
+					return
+				}
 
-				this.parent.model.append({ speed: s, name: n})
+				this.interval = Math.floor(Math.random() * 4000) + 2000
+				var s = Math.floor(Math.random() * 60) + 70
+				var y = Math.floor(Math.random() * 30)
+				var n = "zombie1"
+
+				this.parent.model.append({ speed: s, name: n, y: y})
 			}
 		}
 		delegate: Enemy {
 			active: true;
-			walking: parent.eaten || (x < (parent.width - 150));
-			transform.rotateY: parent.eaten ? -180 : 0;
 			height: 181;  width: 122;
 			name: model.name;
-			property int speed: model.speed;
-			state: walking ? "w" : "a";
-			x: -width; z: 5;
-			property int idx: model.index;
+			interval: model.speed;
+			state: parent.lost ? Enemy.Idle : (x > parent.width - 150 ? Enemy.Attack : Enemy.Walk);
+			idx: model.index;
+			y: model.y;
+			z: model.y;
 
-			onIdxChanged: {
-				if (!this.originalIdx)
-					this.originalIdx = value
-				log ("new index", this.originalIdx, value)
-			}
-
-			onXChanged: {
-				if ((value < -this.width) && zombieGame.eaten && !this.drag.pressed) {
-					log("remove zombie", this.originalIdx, this.idx, this._local['model'])
-					this.stop();
-					this.parent.model.remove(this.idx);
-				}
-			}
 			onTriggered: {
-				if (!this.walking)
+				if (this.state === this.Attack)
 					brain.health--;
-				else
-					this.x += (zombieGame.eaten ? -this.speed : this.speed);
+				else if (this.state === this.Walk)
+					this.x += this.speed;
+			}
+			onFinished: {
+				if (this.state === this.Hurt) {
+					this.state = this.Walk
+				} else if (this.state === this.Dead) {
+					this.parent.model.remove(this.idx)
+				}
 			}
 
 			function discard() {
-				log("discard called")
-				// if (this._interval) {
-				// 	clearInterval(this._interval);
-				// 	this._interval = undefined;
-				// }
+				log("discard called", this.idx)
+//				this.stop();
+				_globals.core.Item.prototype.discard.apply(this)
 			}
 		}
 
@@ -122,15 +161,10 @@ Item {
 			id: brain;
 			property int health: 100;
 			source: "res/brain.png";
-			x: (health !== 0 && zombieGame.active) ? 100% - width / 2 : 100%;
+			x: (health !== 0 && game.active) ? 100% - width / 2 : 100%;
 			Behavior on x { Animation { duration: 600; }}
 
-			Rectangle {
-				y: 100%;
-				color: parent.health > 50 ? "green" : (parent.health > 20 ? "yellow" : "red");
-				height: 4;
-				width: parent.health * parent.width / 200;
-			}
+			onHealthChanged: { if (!value) gameOver.visible = true; }
 		}
 	}
 }
