@@ -5,12 +5,20 @@ AnimatedSprite {
 	width: 121; height: 181;
 	duration: 480;
 	totalFrames: 6;
-//	repeat: state === Enemy.Walk || state === Enemy.Attack;
 	property bool active;
 	running: active && !drag.pressed;
 	property string name;
-	HoverMixin { cursor: "move"; }
-	property DragMixin drag: DragMixin { direction: DragMixin.Horizontal; }
+	interval: model.speed;
+
+	HoverMixin { 
+		cursor: "move";
+		enabled: parent.state !== Enemy.Dead;
+		clickable: enabled;
+	}
+	property DragMixin drag: DragMixin { 
+		direction: DragMixin.Horizontal;
+		enabled: parent.state !== Enemy.Dead;
+	}
 	property int idx;
 	onClicked: {
 		if (this.drag.moved)
